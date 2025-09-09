@@ -5,6 +5,7 @@ const mysql = require("mysql2/promise"); // using promise-based MySQL client
 const {processMonthlyJobs} = require("./monthlyProcessing");
 const {processHourlyJobs} = require("./hourlyProcessing");
 const {processDailyJobs} = require("./dailyProcessing");
+const {processCustomHourlyJobs} = require("./customHourlyProcessing")
 
 const app = express();
 
@@ -209,6 +210,7 @@ app.post("/tracium/healthCheck/:productName", async (req, res) => {
 
     const dailyJobs = jobs.filter((j) => j.frequency === "daily");
     const hourlyJobs = jobs.filter((j) => j.frequency === "hourly");
+    const customHourlyJobs = jobs.filter((j) => j.frequency && j.frequency.includes("-hourly"));
     const monthlyJobs = jobs.filter((j) => j.frequency === "monthly");
 
     const results = [];
@@ -221,6 +223,11 @@ app.post("/tracium/healthCheck/:productName", async (req, res) => {
     // ---------- HOURLY ----------
     if (hourlyJobs.length > 0) {
       await processHourlyJobs(hourlyJobs, startDate, endDate, connection, results);
+    }
+
+    //----------CUSTOM HOURLY ----------
+    if (customHourlyJobs.length > 0) {
+      await processCustomHourlyJobs(customHourlyJobs, startDate, endDate, connection, results);
     }
 
     // MONTHLY Processing

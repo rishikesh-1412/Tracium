@@ -15,7 +15,7 @@ async function processHourlyJobs(hourlyJobs, startDate, endDate, connection, res
             COUNT(DISTINCT reportTime) AS presentCount,
             GROUP_CONCAT(DISTINCT reportTime) AS presentEntries
     FROM job_stage_stats
-    WHERE reportTime BETWEEN ? AND ?
+    WHERE jobType='hourly' AND reportTime BETWEEN ? AND ?
       AND jobName IN (?)
     GROUP BY jobName
   `;

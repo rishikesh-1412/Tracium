@@ -9,7 +9,7 @@ async function processMonthlyJobs(monthlyJobs, startDate, endDate, connection, r
                 COUNT(DISTINCT reportTime) AS presentCount,
                 GROUP_CONCAT(DISTINCT reportTime) AS presentEntries
         FROM job_stage_stats
-        WHERE reportTime BETWEEN ? AND ?
+        WHERE jobType='monthly' AND reportTime BETWEEN ? AND ?
         AND jobName IN (?)
         AND jobType = 'monthly'
         GROUP BY jobName
