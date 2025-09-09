@@ -81,21 +81,24 @@ export default function Graph({ productName, startDate, endDate }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
-  // 🔴 Health check results map (jobName → absentEntries)
   const [healthCheckMap, setHealthCheckMap] = useState({});
+  const [selectedNode, setSelectedNode] = useState(null);
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [newDependency, setNewDependency] = useState({
+    inputs: [{ inputId: "", isRaw: false, customName: "" }],
+  });
 
   const parentMap = buildParentMap(edges);
 
   const onNodeClick = useCallback(
     (_, node) => {
       const ancestorEdges = getAllAncestors(node.id, parentMap);
-
       setEdges((eds) =>
         eds.map((e) => {
           const isHighlighted = ancestorEdges.some(
             (ae) => ae.source === e.source && ae.target === e.target
           );
-
           if (isHighlighted) {
             return {
               ...e,
@@ -103,12 +106,11 @@ export default function Graph({ productName, startDate, endDate }) {
               style: {
                 stroke: "red",
                 strokeWidth: 6,
-                strokeDasharray: "5 5",
+                strokeDasharray: "8 8",
               },
-              markerEnd: { type: MarkerType.ArrowClosed, color: "violet" },
+              markerEnd: { type: MarkerType.ArrowClosed, color: "red" },
             };
           }
-
           return {
             ...e,
             animated: false,
@@ -121,7 +123,6 @@ export default function Graph({ productName, startDate, endDate }) {
     [setEdges, parentMap]
   );
 
-  // Fetch API data when productName changes
   useEffect(() => {
     if (!productName || !startDate || !endDate) return;
 
@@ -130,17 +131,14 @@ export default function Graph({ productName, startDate, endDate }) {
     setEdges([]);
     setHealthCheckMap({});
 
-    // First fetch dependencies
     fetch(
-      `http://localhost:5000/datatrail/productMapping/${productName}?startDate=${startDate}&endDate=${endDate}`
+      `${process.env.REACT_APP_API_URL}/tracium/productMapping/${productName}?startDate=${startDate}&endDate=${endDate}`
     )
       .then((res) => res.json())
       .then((data) => {
         setDependencies(data.dependencies || []);
-
-        // 🔴 Then fetch health check in parallel
         return fetch(
-          `http://localhost:5000/datatrail/healthCheck/${productName}`,
+          `${process.env.REACT_APP_API_URL}/tracium/healthCheck/${productName}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -150,7 +148,6 @@ export default function Graph({ productName, startDate, endDate }) {
       })
       .then((res) => res.json())
       .then((hcData) => {
-        // Convert results into a lookup map
         const hcMap = {};
         hcData.results?.forEach((job) => {
           hcMap[job.jobName] = job.absentEntries || [];
@@ -164,51 +161,77 @@ export default function Graph({ productName, startDate, endDate }) {
       });
   }, [productName, startDate, endDate, setNodes, setEdges]);
 
-  // Build nodes & edges once dependencies are fetched
   useEffect(() => {
     if (dependencies.length === 0) return;
 
-    const nodeIds = [
-      ...new Set(
-        dependencies
-          .flatMap((d) => [d.view, d.input || d.raw_input])
-          .filter((id) => id !== undefined && id !== null && id !== "")
-      ),
-    ];
+    const allNodeIds = new Set(
+      dependencies
+        .flatMap((d) => [d.view, d.input || d.raw_input])
+        .filter((id) => id !== undefined && id !== null && id !== "")
+    );
+    
+    // Ensure all views are included
+    dependencies.forEach((d) => {
+      if (d.view) allNodeIds.add(d.view);
+      if (d.input) allNodeIds.add(d.input);
+      if (d.raw_input) allNodeIds.add(d.raw_input);
+    });
+    
+    const nodeIds = Array.from(allNodeIds);
 
     const rawNodes = nodeIds.map((id) => {
       const isRawInput = dependencies.some(
         (d) => d.raw_input && d.raw_input === id
       );
-
-      // 🔴 Check health map for this node
       const isUnhealthy = healthCheckMap[id]?.length > 0;
 
       return {
         id,
-        data: { label: id },
+        data: {
+          label: (
+            <div
+              title={id}
+              style={{
+                width: "100%",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                textAlign: "center",
+              }}
+            >
+              {id}
+            </div>
+          ),
+        },
         position: { x: 0, y: 0 },
-        className: "reactflow-node", 
+        className: "reactflow-node",
         style: {
           padding: 10,
-          borderRadius: 8,
           background: isUnhealthy
-            ? "linear-gradient(135deg,rgb(242, 190, 199) 0%,rgb(238, 16, 24) 100%)"
+            ? "#ff4545"
             : isRawInput
-            ? "linear-gradient(135deg,rgba(232, 234, 236, 0.27) 0%,rgba(29, 29, 29, 0.31) 100%)"
-            : "linear-gradient(135deg,rgb(221, 242, 223) 0%,rgb(7, 188, 76) 100%)",
+            ? "grey"
+            : "lightgreen",
           color: "black",
           fontSize: 18,
-          fontWeight: 600,
-          minWidth: 370,
-          height: 100,
+          fontWeight: "bold",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          overflowX: "auto",
-          whiteSpace: "nowrap",
           cursor: "grab",
-          transition: "all 0.25s ease-in-out", // smooth transition
+          boxShadow: "0 8px 20px rgba(0,0,0,0.15)",
+          transition: "all 0.25s ease-in-out",
+          ...(isRawInput
+            ? {
+                width: 200,
+                height: 200,
+                borderRadius: "20px",
+              }
+            : {
+                minWidth: 370,
+                height: 100,
+                borderRadius: "999px",
+              }),
         },
       };
     });
@@ -231,6 +254,70 @@ export default function Graph({ productName, startDate, endDate }) {
     setEdges(initialEdges);
   }, [dependencies, healthCheckMap, setNodes, setEdges]);
 
+
+  const handleDependencySubmit = () => {
+    if (!selectedNode) return;
+
+    const confirmMsg = `Are you sure you want to update dependencies for "${selectedNode.id}"? 
+  This will delete all existing dependencies for this node and cannot be undone.`;
+  
+    if (!window.confirm(confirmMsg)) {
+      return; // User canceled
+    }
+  
+    const inputViews = [];
+    const rawInputs = [];
+  
+    newDependency.inputs.forEach(input => {
+      if (input.inputId) {
+        input.isRaw ? rawInputs.push(input.inputId) : inputViews.push(input.inputId);
+      } else if (input.customName) {
+        rawInputs.push(input.customName); // custom inputs are raw
+      }
+    });
+  
+    const payload = {
+      inputViews: inputViews.join(","),
+      rawInputs: rawInputs.join(","),
+    };
+  
+    fetch(`${process.env.REACT_APP_API_URL}/tracium/update/view_dependency/${selectedNode.id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    })
+      .then(res => res.json())
+      .then(data => {
+        console.log("API Response:", data);
+  
+        // Update dependencies state
+        setDependencies(prevDeps => {
+          // Remove old dependencies for this node
+          const filteredDeps = prevDeps.filter(dep => dep.view !== selectedNode.id);
+  
+          // Add new dependencies
+          const newDeps = [
+            ...inputViews.map(iv => ({ view: selectedNode.id, input: iv })),
+            ...rawInputs.map(ri => ({ view: selectedNode.id, raw_input: ri }))
+          ];
+  
+          return [...filteredDeps, ...newDeps];
+        });
+  
+        // Reset form
+        setIsEditing(false);
+        setNewDependency({ inputs: [{ inputId: "", isRaw: false, customName: "" }] });
+        setSelectedNode(null); // close popup if desired
+      })
+      .catch(err => {
+        console.error("Error updating dependency:", err);
+      });
+  };
+  
+  
+
   if (loading) {
     return (
       <div
@@ -250,15 +337,7 @@ export default function Graph({ productName, startDate, endDate }) {
           viewBox="0 0 160 160"
           xmlns="http://www.w3.org/2000/svg"
         >
-          {/* Edges */}
-          <line
-            x1="80"
-            y1="20"
-            x2="80"
-            y2="140"
-            stroke="#9ca3af"
-            strokeWidth="2"
-          >
+          <line x1="80" y1="20" x2="80" y2="140" stroke="#9ca3af" strokeWidth="2">
             <animate
               attributeName="stroke-opacity"
               values="0.3;1;0.3"
@@ -266,14 +345,7 @@ export default function Graph({ productName, startDate, endDate }) {
               repeatCount="indefinite"
             />
           </line>
-          <line
-            x1="20"
-            y1="80"
-            x2="140"
-            y2="80"
-            stroke="#9ca3af"
-            strokeWidth="2"
-          >
+          <line x1="20" y1="80" x2="140" y2="80" stroke="#9ca3af" strokeWidth="2">
             <animate
               attributeName="stroke-opacity"
               values="0.3;1;0.3"
@@ -282,15 +354,8 @@ export default function Graph({ productName, startDate, endDate }) {
               repeatCount="indefinite"
             />
           </line>
-  
-          {/* Nodes */}
           <circle cx="80" cy="20" r="10" fill="#3b82f6">
-            <animate
-              attributeName="r"
-              values="8;12;8"
-              dur="1.5s"
-              repeatCount="indefinite"
-            />
+            <animate attributeName="r" values="8;12;8" dur="1.5s" repeatCount="indefinite" />
           </circle>
           <circle cx="80" cy="140" r="10" fill="#10b981">
             <animate
@@ -320,30 +385,300 @@ export default function Graph({ productName, startDate, endDate }) {
             />
           </circle>
         </svg>
-  
         <p style={{ marginTop: "20px", fontSize: "18px", fontWeight: "600", color: "#374151" }}>
           Rendering Graph...
         </p>
       </div>
     );
   }
-  
+
   return (
-    <div style={{ width: "100vw", height: "81vh" }}>
+    <div style={{ width: "100vw", height: "92vh", position: "relative" }}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onNodeClick={onNodeClick}
+        onNodeClick={(_, node) => {
+          setSelectedNode(node);
+        }}
+        onNodeMouseEnter={(_, node) => {
+          onNodeClick(_, node);
+          setNodes((nds) =>
+            nds.map((n) =>
+              n.id === node.id
+                ? {
+                    ...n,
+                    style: {
+                      ...n.style,
+                      boxShadow: "0 16px 20px rgba(0,0,0,0.25)",
+                      transition: "all 0.2s ease-in-out",
+                    },
+                  }
+                : n
+            )
+          );
+        }}
+        onNodeMouseLeave={(_, node) => {
+          setNodes((nds) =>
+            nds.map((n) =>
+              n.id === node.id
+                ? {
+                    ...n,
+                    style: {
+                      ...n.style,
+                      boxShadow: "none",
+                      transition: "all 0.2s ease-in-out",
+                    },
+                  }
+                : n
+            )
+          );
+        }}
         minZoom={0.3}
         maxZoom={5}
         fitView
         nodesDraggable
       >
         <Controls />
-        <Background />
+        <Background
+          color="grey"
+          gap={16}
+          size={2}
+          style={{ backgroundColor: "#f9fafa" }}
+        />
       </ReactFlow>
+
+      {/* 🔴 Popup Modal */}
+      {selectedNode && (
+        <div
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            background: "white",
+            borderRadius: "12px",
+            padding: "20px",
+            boxShadow: "0 12px 30px rgba(0,0,0,0.25)",
+            minWidth: "400px",
+            maxWidth: "600px",
+            zIndex: 1000,
+          }}
+        >
+          {!isEditing ? (
+            <>
+              <h2 style={{ marginBottom: "12px", fontWeight: "bold" }}>
+                {selectedNode.id}
+              </h2>
+              <p style={{ fontSize: "14px", color: "#374151" }}>
+                <strong>Absent Entries:</strong>
+              </p>
+              <ul
+                style={{
+                  marginTop: "6px",
+                  paddingLeft: "20px",
+                  maxHeight: "200px",
+                  overflowY: "auto",
+                }}
+              >
+                {(healthCheckMap[selectedNode.id] || []).length > 0 ? (
+                  healthCheckMap[selectedNode.id].map((entry, idx) => (
+                    <li key={idx} style={{ fontSize: "14px", marginBottom: "4px" }}>
+                      {entry}
+                    </li>
+                  ))
+                ) : (
+                  <li style={{ color: "green", fontWeight: "500" }}>
+                    No Absent Entries ✅
+                  </li>
+                )}
+              </ul>
+                <div style={{ marginTop: "16px", display: "flex", gap: "8px" }}>
+                  {!(selectedNode.style?.background === "grey") && (
+                    <button
+                      onClick={() => setIsEditing(true)}
+                      style={{
+                        padding: "8px 16px",
+                        borderRadius: "8px",
+                        border: "none",
+                        background: "#10b981",
+                        color: "white",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Update Dependencies
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setSelectedNode(null)}
+                    style={{
+                      padding: "8px 16px",
+                      borderRadius: "8px",
+                      border: "none",
+                      background: "#3b82f6",
+                      color: "white",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Close
+                  </button>
+                </div>
+            </>
+          ) : (
+            <>
+              <h2 style={{ marginBottom: "12px", fontWeight: "bold" }}>
+                Update Dependency for {selectedNode.id}
+              </h2>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                handleDependencySubmit();
+              }}>
+                {newDependency.inputs.map((input, index) => {
+                  const isCustom = input.isRaw && input.inputId === ""; // show textbox as soon as custom is selected
+                  return (
+                    <div key={index} style={{ marginBottom: "12px", display: "flex", gap: "8px", alignItems: "center" }}>
+                      {isCustom ? (
+                        <div style={{ flexGrow: 1 }}>
+                          <input
+                            type="text"
+                            placeholder="Custom input name"
+                            value={input.customName}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setNewDependency(prev => {
+                                const newInputs = [...prev.inputs];
+                                newInputs[index] = { ...newInputs[index], customName: val };
+                                return { ...prev, inputs: newInputs };
+                              });
+                            }}
+                            style={{ padding: "8px", borderRadius: "6px", border: "1px solid #ccc", width: "95%" }}
+                          />
+                          <small style={{ display: "block", color: "#555", marginTop: "4px" }}>raw input</small>
+
+                        </div>
+                      ) : (
+                        <select
+                          value={input.inputId}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setNewDependency(prev => {
+                              const newInputs = [...prev.inputs];
+                              if (val === "custom") {
+                                newInputs[index] = { inputId: "", isRaw: true, customName: "" };
+                              } else {
+                                const selectedNodeObj = nodes.find(n => n.id === val);
+                                const isRaw = selectedNodeObj && selectedNodeObj.style.background === "grey";
+                                newInputs[index] = { inputId: val, isRaw, customName: "" };
+                              }
+                              return { ...prev, inputs: newInputs };
+                            });
+                          }}
+                          style={{ padding: "8px", borderRadius: "6px", border: "1px solid #ccc", flexGrow: 1 }}
+                        >
+                          <option value="">Select Input</option>
+                          {nodes.filter(n => n.id !== selectedNode.id).map((n) => (
+                            <option key={n.id} value={n.id}>
+                              {n.id} {n.style.background === "grey" ? "(Raw Input)" : ""}
+                            </option>
+                          ))}
+                          <option value="custom">Custom Input</option>
+                        </select>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewDependency(prev => {
+                            const newInputs = prev.inputs.filter((_, idx) => idx !== index);
+                            return { ...prev, inputs: newInputs.length > 0 ? newInputs : [{ inputId: "", isRaw: false, customName: "" }] };
+                          });
+                        }}
+                        style={{ padding: "8px 12px", borderRadius: "6px", border: "none", background: "#ef4444", color: "white", cursor: "pointer" }}
+
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  );
+                })}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewDependency(prev => ({
+                      ...prev,
+                      inputs: [...prev.inputs, { inputId: "", isRaw: false, customName: "" }]
+                    }));
+                  }}
+                  disabled={
+                    newDependency.inputs.some(input =>
+                      !(input.inputId !== "" || (input.customName && input.customName.trim() !== ""))
+                    )
+                  }
+                  style={{
+                    marginBottom: "12px",
+                    padding: "8px 16px",
+                    borderRadius: "6px",
+                    border: "none",
+                    background: newDependency.inputs.some(input =>
+                      !(input.inputId !== "" || (input.customName && input.customName.trim() !== ""))
+                    ) ? "#ccc" : "#3b82f6",
+                    color: "white",
+                    cursor: newDependency.inputs.some(input =>
+                      !(input.inputId !== "" || (input.customName && input.customName.trim() !== ""))
+                    ) ? "not-allowed" : "pointer"
+                  }}
+                >
+                  Add Input
+                </button>
+
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <button
+                    type="submit"
+                    disabled={
+                      !newDependency.inputs.some(input =>
+                        input.inputId !== "" || (input.customName && input.customName.trim() !== "")
+                      )
+                    }
+                    style={{
+                      padding: "8px 16px",
+                      borderRadius: "8px",
+                      border: "none",
+                      background: newDependency.inputs.some(input =>
+                        input.inputId !== "" || (input.customName && input.customName.trim() !== "")
+                      ) ? "#10b981" : "#ccc",
+                      color: "white",
+                      cursor: newDependency.inputs.some(input =>
+                        input.inputId !== "" || (input.customName && input.customName.trim() !== "")
+                      ) ? "pointer" : "not-allowed"
+                    }}
+                  >
+                    Submit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditing(false);
+                      setNewDependency({ inputs: [{ inputId: "", isRaw: false, customName: "" }] });
+                    }}
+                    style={{
+                      padding: "8px 16px",
+                      borderRadius: "8px",
+                      border: "none",
+                      background: "#ef4444",
+                      color: "white",
+                      cursor: "pointer"
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

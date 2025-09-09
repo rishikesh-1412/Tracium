@@ -2,8 +2,16 @@ const express = require("express");
 const cors = require("cors");
 const mysql = require("mysql2/promise"); // using promise-based MySQL client
 
+const {processMonthlyJobs} = require("./monthlyProcessing");
+const {processHourlyJobs} = require("./hourlyProcessing");
+const {processDailyJobs} = require("./dailyProcessing");
+
 const app = express();
-const port = 5000;
+
+require('dotenv').config();
+
+
+const port = process.env.DB_PORT || 5000;
 
 app.use(express.json());
 
@@ -11,16 +19,23 @@ app.use(cors());
 
 // ---- MySQL connection config ----
 const dbConfig = {
-  host: "localhost", // or your DB host
-  user: "rishikesh",
-  password: "password",
-  database: "observium",
+  // host: "10.140.98.24", // or your prod DB host
+  // user: "datanode_user",
+  // password: "09kY3NHs",
+  // database: "observium",
+
+  host: process.env.DB_HOST || 'host.docker.internal',
+  user: process.env.DB_USER || 'rishikesh',
+  password: process.env.DB_PASS || 'password',
+  database: process.env.DB_NAME || 'observium',
+  port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : 3306,
 };
 
-// ---- API ----
-app.get("/datatrail/productMapping/:productName", async (req, res) => {
+
+//api to get mapping of all jobs for specific product
+app.get("/tracium/productMapping/:productName", async (req, res) => {
   const { productName } = req.params;
-  const { startDate, endDate } = req.query;
+  // const { startDate, endDate } = req.query;
 
   try {
     const connection = await mysql.createConnection(dbConfig);
@@ -28,11 +43,18 @@ app.get("/datatrail/productMapping/:productName", async (req, res) => {
     // Query to fetch dependencies dynamically
     const [rows] = await connection.execute(
       `
-      SELECT view_name AS view, input_view_name AS input, raw_input
-      FROM view_dependencies
-      WHERE view_name IN (
-        SELECT view_name FROM views WHERE product_name = ?
-      )
+      SELECT 
+          v.view_name AS view, 
+          vd.input_view_name AS input, 
+          vd.raw_input
+      FROM 
+          views v
+      LEFT JOIN 
+          view_dependencies vd 
+          ON v.view_name = vd.view_name
+      WHERE 
+          v.product_name = ? 
+          AND v.is_active = 'true'
       `,
       [productName]
     );
@@ -49,14 +71,16 @@ app.get("/datatrail/productMapping/:productName", async (req, res) => {
   }
 });
 
-app.get("/datatrail/list/products", async (req, res) => {
+
+// api for getting all available products list
+app.get("/tracium/list/products", async (req, res) => {
   try {
     const connection = await mysql.createConnection(dbConfig);
 
     // Query to fetch distinct product names
     const [rows] = await connection.execute(`
       SELECT DISTINCT product_name
-      FROM views
+      FROM views 
     `);
 
     await connection.end();
@@ -70,146 +94,102 @@ app.get("/datatrail/list/products", async (req, res) => {
   }
 });
 
-// app.post("/datatrail/healthCheck/:productName", async (req, res) => {
-//   const { productName } = req.params;
-//   const { startDate, endDate } = req.body; // both are in "YYYY-MM-DD-HH"
+app.get("/tracium/list/views/:productName", async (req, res) => {
+  try {
+    const { productName } = req.params;
 
-//   try {
-//     const connection = await mysql.createConnection(dbConfig);
+    const connection = await mysql.createConnection(dbConfig);
 
-//     // Fetch jobs for the product
-//     const [jobs] = await connection.execute(
-//       `SELECT view_name AS jobName, LOWER(frequency) AS frequency
-//        FROM views
-//        WHERE product_name = ?`,
-//       [productName]
-//     );
+    // Query to fetch distinct product names
+    const [rows] = await connection.execute(`
+      SELECT * from views where product_name = ? and is_active = 'true'`, [productName]);
 
-//     const dailyJobs = jobs.filter((j) => j.frequency === "daily");
-//     const hourlyJobs = jobs.filter((j) => j.frequency === "hourly");
+    await connection.end();
 
-//     const results = [];
-
-//     // ---------- DAILY ----------
-//     if (dailyJobs.length > 0) {
-//       const dailyStart = startDate.substring(0, 10);
-//       const dailyEnd = endDate.substring(0, 10);
-
-//       console.log(dailyStart, dailyEnd);
-
-//       const expectedDays = [];
-//       const start = new Date(dailyStart);
-//       const end = new Date(dailyEnd);
-//       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-//         expectedDays.push(d.toISOString().slice(0, 10));
-//       }
-
-//       const [dailyRows] = await connection.execute(
-//         `
-//         SELECT jobName,
-//                COUNT(DISTINCT reportTime) AS presentCount,
-//                GROUP_CONCAT(DISTINCT reportTime) AS presentEntries
-//         FROM job_stage_stats
-//         WHERE reportTime BETWEEN ? AND ?
-//           AND jobName IN (?)
-//         GROUP BY jobName
-//         `,
-//         [dailyStart, dailyEnd, dailyJobs.map((j) => j.jobName)]
-//       );
-
-//       const dailyMap = {};
-//       for (let row of dailyRows) {
-//         dailyMap[row.jobName] = {
-//           presentCount: row.presentCount,
-//           presentEntries: row.presentEntries ? row.presentEntries.split(",") : [],
-//         };
-//       }
-
-//       console.log(dailyMap.length)
-
-//       for (const job of dailyJobs) {
-//         const jobData = dailyMap[job.jobName] || { presentCount: 0, presentEntries: [] };
-//         let absent = [];
-
-//         if (jobData.presentCount < expectedDays.length) {
-//           absent = expectedDays.filter((x) => !jobData.presentEntries.includes(x));
-//         }
-
-//         results.push({
-//           jobName: job.jobName,
-//           frequency: "daily",
-//           expectedCount: expectedDays.length,
-//           presentCount: jobData.presentCount,
-//           presentEntries: jobData.presentEntries,
-//           absentEntries: absent,
-//         });
-//       }
-//     }
-
-//     // // ---------- HOURLY ----------
-//     // if (hourlyJobs.length > 0) {
-//     //   const expectedHours = [];
-//     //   const start = new Date(startDate.replace(/-/g, "/") + ":00:00");
-//     //   const end = new Date(endDate.replace(/-/g, "/") + ":00:00");
-//     //   for (let d = new Date(start); d <= end; d.setHours(d.getHours() + 1)) {
-//     //     const yyyy = d.getFullYear();
-//     //     const mm = String(d.getMonth() + 1).padStart(2, "0");
-//     //     const dd = String(d.getDate()).padStart(2, "0");
-//     //     const hh = String(d.getHours()).padStart(2, "0");
-//     //     expectedHours.push(`${yyyy}-${mm}-${dd}-${hh}`);
-//     //   }
-
-//     //   const [hourlyRows] = await connection.execute(
-//     //     `
-//     //     SELECT jobName,
-//     //            COUNT(DISTINCT reportTime) AS presentCount,
-//     //            GROUP_CONCAT(DISTINCT reportTime) AS presentEntries
-//     //     FROM job_stage_stats
-//     //     WHERE reportTime BETWEEN ? AND ?
-//     //       AND jobName IN (?)
-//     //     GROUP BY jobName
-//     //     `,
-//     //     [startDate, endDate, hourlyJobs.map((j) => j.jobName)]
-//     //   );
-
-//     //   const hourlyMap = {};
-//     //   for (let row of hourlyRows) {
-//     //     hourlyMap[row.jobName] = {
-//     //       presentCount: row.presentCount,
-//     //       presentEntries: row.presentEntries ? row.presentEntries.split(",") : [],
-//     //     };
-//     //   }
-
-//     //   for (const job of hourlyJobs) {
-//     //     const jobData = hourlyMap[job.jobName] || { presentCount: 0, presentEntries: [] };
-//     //     let absent = [];
-
-//     //     if (jobData.presentCount < expectedHours.length) {
-//     //       absent = expectedHours.filter((x) => !jobData.presentEntries.includes(x));
-//     //     }
-
-//     //     results.push({
-//     //       jobName: job.jobName,
-//     //       frequency: "hourly",
-//     //       expectedCount: expectedHours.length,
-//     //       presentCount: jobData.presentCount,
-//     //       presentEntries: jobData.presentEntries,
-//     //       absentEntries: absent,
-//     //     });
-//     //   }
-//     // }
-
-//     await connection.end();
-
-//     res.json({ productName, results });
-//   } catch (err) {
-//     console.error("Error in healthCheck:", err);
-//     res.status(500).json({ error: "Failed to fetch health check" });
-//   }
-// });
+    res.json({
+      products: rows
+    });
+  } catch (err) {
+    console.error("Error fetching product list:", err);
+    res.status(500).json({ error: "Failed to fetch data from database" });
+  }
+});
 
 
-app.post("/datatrail/healthCheck/:productName", async (req, res) => {
+app.get("/tracium/list/view_dependency/:productName", async (req, res) => {
+  try {
+    const { productName } = req.params;
+
+    const connection = await mysql.createConnection(dbConfig);
+
+    // Query to fetch distinct product names
+    const [rows] = await connection.execute(`
+      SELECT * from view_dependencies where view_name in (select view_name from views where product_name = ?)`, [productName]);
+
+    await connection.end();
+
+    res.json({
+      products: rows
+    });
+  } catch (err) {
+    console.error("Error fetching product list:", err);
+    res.status(500).json({ error: "Failed to fetch data from database" });
+  }
+});
+
+
+app.put("/tracium/update/view_dependency/:viewName", async (req, res) => {
+  const { viewName } = req.params;
+  const { inputViews, rawInputs } = req.body; // comma separated strings
+
+  try {
+
+    const connection = await mysql.createConnection(dbConfig);
+
+    // 1️⃣ Delete existing dependencies
+    await connection.execute("DELETE FROM view_dependencies WHERE view_name = ?", [viewName]);
+
+    // 2️⃣ Prepare new entries
+    const newEntries = [];
+
+    if (inputViews) {
+      inputViews.split(",").forEach(input => {
+        newEntries.push([viewName, input.trim(), null]);
+      });
+    }
+
+    if (rawInputs) {
+      rawInputs.split(",").forEach(raw => {
+        newEntries.push([viewName, null, raw.trim()]);
+      });
+    }
+
+    // 3️⃣ Insert new dependencies
+    if (newEntries.length > 0) {
+      const placeholders = newEntries.map(() => "(?, ?, ?)").join(", ");
+      const flatValues = newEntries.flat();
+      await connection.execute(
+        `INSERT INTO view_dependencies (view_name, input_view_name, raw_input) VALUES ${placeholders}`,
+        flatValues
+      );
+    }
+
+    // 4️⃣ Send response
+    res.json({
+      status: "success",
+      message: `Dependencies updated successfully for job ${viewName}`,
+      insertedRows: newEntries.length
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ status: "error", message: "Failed to update dependencies" });
+  }
+});
+
+
+
+// api for health check of all frequency jobs
+app.post("/tracium/healthCheck/:productName", async (req, res) => {
   const { productName } = req.params;
   const { startDate, endDate } = req.body; // both are in "YYYY-MM-DD-HH"
 
@@ -222,135 +202,30 @@ app.post("/datatrail/healthCheck/:productName", async (req, res) => {
     const [jobs] = await connection.execute(
       `SELECT view_name AS jobName, LOWER(frequency) AS frequency
        FROM views
-       WHERE product_name = ?`,
+       WHERE product_name = ? AND is_active = 'true'`,
       [productName]
     );
 
     const dailyJobs = jobs.filter((j) => j.frequency === "daily");
     const hourlyJobs = jobs.filter((j) => j.frequency === "hourly");
+    const monthlyJobs = jobs.filter((j) => j.frequency === "monthly");
 
     const results = [];
 
     // ---------- DAILY ----------
     if (dailyJobs.length > 0) {
-      const dailyStart = startDate.substring(0, 10);
-      const dailyEnd = endDate.substring(0, 10);
-
-      // console.log("Daily timeframe:", dailyStart, "→", dailyEnd);
-
-      const expectedDays = [];
-      const start = new Date(dailyStart);
-      const end = new Date(dailyEnd);
-      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        expectedDays.push(d.toISOString().slice(0, 10));
-      }
-
-      const dailySql = `
-        SELECT jobName,
-               COUNT(DISTINCT reportTime) AS presentCount,
-               GROUP_CONCAT(DISTINCT reportTime) AS presentEntries
-        FROM job_stage_stats
-        WHERE reportTime BETWEEN ? AND ?
-          AND jobName IN (?)
-        GROUP BY jobName
-      `;
-      const dailyParams = [dailyStart, dailyEnd, dailyJobs.map((j) => j.jobName)];
-
-      // 👇 Log the fully formatted query
-      // console.log("Executing SQL:", connection.format(dailySql, dailyParams));
-
-      const [dailyRows] = await connection.execute(connection.format(dailySql, dailyParams));
-
-      // console.log(dailyRows)
-
-      const dailyMap = {};
-      for (let row of dailyRows) {
-        dailyMap[row.jobName] = {
-          presentCount: row.presentCount,
-          presentEntries: row.presentEntries ? row.presentEntries.split(",") : [],
-        };
-      }
-
-      // console.log(dailyMap)
-
-      for (const job of dailyJobs) {
-        const jobData = dailyMap[job.jobName] || { presentCount: 0, presentEntries: [] };
-        let absent = [];
-
-        if (jobData.presentCount < expectedDays.length) {
-          absent = expectedDays.filter((x) => !jobData.presentEntries.includes(x));
-        }
-
-        results.push({
-          jobName: job.jobName,
-          frequency: "daily",
-          // expectedCount: expectedDays.length,
-          // presentCount: jobData.presentCount,
-          // presentEntries: jobData.presentEntries,
-          absentEntries: absent,
-        });
-      }
+      await processDailyJobs(dailyJobs, startDate, endDate, connection, results);
     }
-
 
     // ---------- HOURLY ----------
     if (hourlyJobs.length > 0) {
-      const expectedHours = [];
-      const start = new Date(startDate.replace(/-/g, "/") + ":00:00");
-      const end = new Date(endDate.replace(/-/g, "/") + ":00:00");
-      for (let d = new Date(start); d <= end; d.setHours(d.getHours() + 1)) {
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, "0");
-        const dd = String(d.getDate()).padStart(2, "0");
-        const hh = String(d.getHours()).padStart(2, "0");
-        expectedHours.push(`${yyyy}-${mm}-${dd}-${hh}`);
-      }
-
-      const hourlySql = `
-        SELECT jobName,
-               COUNT(DISTINCT reportTime) AS presentCount,
-               GROUP_CONCAT(DISTINCT reportTime) AS presentEntries
-        FROM job_stage_stats
-        WHERE reportTime BETWEEN ? AND ?
-          AND jobName IN (?)
-        GROUP BY jobName
-      `;
-      const hourlyParams = [startDate, endDate, hourlyJobs.map((j) => j.jobName)];
-
-      // 👇 Log the fully formatted query
-      // console.log("Executing SQL:", connection.format(hourlySql, hourlyParams));
-
-      const [hourlyRows] = await connection.execute(connection.format(hourlySql, hourlyParams));
-
-      // console.log(hourlyRows)
-
-      const hourlyMap = {};
-      for (let row of hourlyRows) {
-        hourlyMap[row.jobName] = {
-          presentCount: row.presentCount,
-          presentEntries: row.presentEntries ? row.presentEntries.split(",") : [],
-        };
-      }
-
-      for (const job of hourlyJobs) {
-        const jobData = hourlyMap[job.jobName] || { presentCount: 0, presentEntries: [] };
-        let absent = [];
-
-        if (jobData.presentCount < expectedHours.length) {
-          absent = expectedHours.filter((x) => !jobData.presentEntries.includes(x));
-        }
-
-        results.push({
-          jobName: job.jobName,
-          frequency: "hourly",
-          // expectedCount: expectedHours.length,
-          // presentCount: jobData.presentCount,
-          // presentEntries: jobData.presentEntries,
-          absentEntries: absent,
-        });
-      }
+      await processHourlyJobs(hourlyJobs, startDate, endDate, connection, results);
     }
 
+    // MONTHLY Processing
+    if (monthlyJobs.length > 0) {
+      await processMonthlyJobs(monthlyJobs, startDate, endDate, connection, results);
+    }
 
     await connection.end();
 
@@ -365,5 +240,5 @@ app.post("/datatrail/healthCheck/:productName", async (req, res) => {
 
 // Start server
 app.listen(port, () => {
-  console.log(`DataTrail API running at http://localhost:${port}`);
+  console.log(`DataTrail API running at http://${process.env.DB_HOST}:${port}`);
 });

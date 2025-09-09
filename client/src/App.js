@@ -1,10 +1,13 @@
 import React, { useState } from "react";
-import Header from "./Header";
+// import Header from "./Header";
 import Graph from "./Graph";
 import Selector from "./Input";
+import AdHocAPI from "./AdHocAPI";
 import DynamicSVGPlaceholderWithEdges from "./SVGPlaceholder";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import JobDependency from "./JobDependencies";
+
 
 export default function App() {
   const [filters, setFilters] = useState({
@@ -19,11 +22,13 @@ export default function App() {
   const [selectedStartDateHour, setSelectedStartDateHour] = useState(null);
   const [selectedEndDateHour, setSelectedEndDateHour] = useState(null);
 
+  // 🔴 new state to toggle between Graph & AdHoc API
+  const [selectedView, setSelectedView] = useState("graph");
+
   const handleLoadGraph = () => {
-    // Check if all 5 inputs are selected
     const { productName, startDate, startHour, endDate, endHour } = filters;
 
-    if (!productName || !startDate || !startHour || !endDate || !endHour) {
+    if (selectedView!='jobDependency' && (!productName || !startDate || !startHour || !endDate || !endHour)) {
       toast.warning("Please provide all inputs", {
         position: "top-right",
         autoClose: 4000,
@@ -42,22 +47,167 @@ export default function App() {
   };
 
   return (
-    <div style={{ width: "100vw", height: "100vh" }}>
-      <Header/>
-      <Selector
-        filters={filters}
-        setFilters={setFilters}
-        onLoadGraph={handleLoadGraph}
-      />
+    <div style={{ display: "flex", width: "100vw", height: "100vh" }}>
+      {/* Sidebar */}
+      <div
+        style={{
+          width: "220px",
+          background: "linear-gradient(135deg,rgb(231, 233, 224) 0%,rgb(218, 218, 229) 25%,rgb(219, 210, 244) 75%,rgb(163, 179, 193) 100%)",
+          color: "black",
+          display: "flex",
+          flexDirection: "column",
+          padding: "20px",
+        }}
+      >
+        <h2 style={{ marginBottom: "20px", fontSize: "18px", fontWeight: "bold" }}>
+          {/* Dashboard */}
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <img
+              src="/Tracium_logo.png"
+              alt="Tracium Logo"
+              style={{
+                width: 50,
+                height: 50, // keep it square for better alignment
+                marginRight: 0,
+                borderRadius: 8,
+                filter: "grayscale(100%) brightness(0)"
+              }}
+            />
+            <span
+              style={{
+                fontSize: 36, // adjust as needed to match logo's visual height
+                fontWeight: "bold",
+                color: "#000",
+              }}
+            >
+              Tracium
+            </span>
+          </div>
+          <p style={{ color: "#888", fontSize: "12px" }}>
+            Powered By Observium
+          </p>
 
-      {selectedProduct ? (
-        <Graph productName={selectedProduct} startDate={selectedStartDateHour} endDate={selectedEndDateHour} />
-      ) : (
-        <DynamicSVGPlaceholderWithEdges />
-      )}
+        </h2>
 
-      <ToastContainer />
+        <button
+          onClick={() => setSelectedView("graph")}
+          style={{
+            background: selectedView === "graph" ? "#3b82f6" : "transparent",
+            color: "black",
+            fontWeight: "bold",
+            fontSize: "15px",
+            border: "none",
+            padding: "10px 12px",
+            textAlign: "left",
+            marginBottom: "10px",
+            borderRadius: "8px",
+            cursor: "pointer",
+          }}
+        >
+          Observium Graph
+        </button>
+
+        <button
+          onClick={() => setSelectedView("adhoc")}
+          style={{
+            background: selectedView === "adhoc" ? "#3b82f6" : "transparent",
+            color: "black",
+            fontWeight: "bold",
+            fontSize: "15px",
+            border: "none",
+            padding: "10px 12px",
+            textAlign: "left",
+            borderRadius: "8px",
+            cursor: "pointer",
+          }}
+        >
+          AdHoc API
+        </button>
+
+        <button
+          onClick={() => window.open(`${process.env.REACT_APP_DISCREPANCY_CHECKER_URL}`, "_blank")}
+          style={{
+            background: selectedView === "discrepancy-checker" ? "#3b82f6" : "transparent",
+            color: "black",
+            fontWeight: "bold",
+            fontSize: "15px",
+            border: "none",
+            padding: "10px 12px",
+            textAlign: "left",
+            borderRadius: "8px",
+            cursor: "pointer",
+          }}
+        >
+          Observium Discrepancy Checker
+        </button>
+
+        <button
+          onClick={() => setSelectedView("jobDependency")}
+          style={{
+            background: selectedView === "jobDependency" ? "#3b82f6" : "transparent",
+            color: "black",
+            fontWeight: "bold",
+            fontSize: "15px",
+            border: "none",
+            padding: "10px 12px",
+            textAlign: "left",
+            borderRadius: "8px",
+            cursor: "pointer",
+          }}
+        >
+          Job Details
+        </button>
+      </div>
+
+      <div style={{ flex: 1, background: "#f9fafb", overflow: "hidden" }}>
+        {/* <Header /> */}
+        <Selector
+          filters={filters}
+          setFilters={setFilters}
+          onLoadGraph={handleLoadGraph}
+        />
+
+        {(() => {
+          if (selectedView === "graph") {
+            if (selectedProduct && (selectedStartDateHour.length)>7 && (selectedEndDateHour.length)>7) {
+              return (
+                <Graph
+                  productName={selectedProduct}
+                  startDate={selectedStartDateHour}
+                  endDate={selectedEndDateHour}
+                />
+              );
+            } else {
+              return <DynamicSVGPlaceholderWithEdges />;
+            }
+          } else if (selectedView === "adhoc") {
+            if (selectedProduct && (selectedStartDateHour.length)>7 && (selectedEndDateHour.length)>7) {
+              console.log(selectedStartDateHour, selectedEndDateHour)
+              return (
+                <AdHocAPI
+                  productName={selectedProduct}
+                  startDate={selectedStartDateHour}
+                  endDate={selectedEndDateHour}
+                />
+              );
+            } else {
+              return <DynamicSVGPlaceholderWithEdges />;
+            }
+          } else {
+            if (selectedProduct) {
+              return (
+                <JobDependency
+                  productName={selectedProduct}
+                />
+              );
+            } else {
+              return <DynamicSVGPlaceholderWithEdges />;
+            }
+          }
+        })()}
+
+        <ToastContainer />
+      </div>
     </div>
   );
 }
-

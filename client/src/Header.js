@@ -12,11 +12,12 @@ export default function Header() {
         justifyContent: "center"
       }}
     >
-        <img
+        {/* <img
         src="/datatrails-logo.png" // public folder path
         alt="DataTrail Logo"
         style={{ width: 200, height: 70, marginRight: 15, borderRadius: 8 }}
-      />
+      /> */}
+      Traceium
     </div>
   );
 }
