@@ -63,7 +63,7 @@ export default function App() {
           {/* Dashboard */}
           <div style={{ display: "flex", alignItems: "center" }}>
             <img
-              src="/Tracium_logo.png"
+              src="./Tracium_logo.png"
               alt="Tracium Logo"
               style={{
                 width: 50,

@@ -11,7 +11,7 @@ const app = express();
 require('dotenv').config();
 
 
-const port = process.env.DB_PORT || 5000;
+const server_port = process.env.PORT || 5000;
 
 app.use(express.json());
 
@@ -19,10 +19,11 @@ app.use(cors());
 
 // ---- MySQL connection config ----
 const dbConfig = {
-  // host: "10.140.98.24", // or your prod DB host
-  // user: "datanode_user",
-  // password: "09kY3NHs",
+  // host: "localhost", // or your prod DB host
+  // user: "rishikesh",
+  // password: "password",
   // database: "observium",
+  // port: 3306
 
   host: process.env.DB_HOST || 'host.docker.internal',
   user: process.env.DB_USER || 'rishikesh',
@@ -237,8 +238,8 @@ app.post("/tracium/healthCheck/:productName", async (req, res) => {
 });
 
 
-
-// Start server
-app.listen(port, () => {
-  console.log(`DataTrail API running at http://${process.env.DB_HOST}:${port}`);
+app.listen(server_port, '0.0.0.0', () => {
+  console.log(`Tracium API running at http://0.0.0.0:5000`);
+  console.log(`Connected to MySQL ${process.env.DB_HOST}:${process.env.DB_PORT}`);
 });
+
