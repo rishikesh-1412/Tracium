@@ -6,6 +6,7 @@ const {processMonthlyJobs} = require("./monthlyProcessing");
 const {processHourlyJobs} = require("./hourlyProcessing");
 const {processDailyJobs} = require("./dailyProcessing");
 const {processCustomHourlyJobs} = require("./customHourlyProcessing")
+const {processWeeklyJobs} = require("./weeklyProcessing")
 
 const app = express();
 
@@ -104,7 +105,7 @@ app.get("/tracium/list/views/:productName", async (req, res) => {
 
     // Query to fetch distinct product names
     const [rows] = await connection.execute(`
-      SELECT * from views where product_name = ? and is_active = 'true'`, [productName]);
+      SELECT * from views where product_name = ?`, [productName]);
 
     await connection.end();
 
@@ -189,6 +190,57 @@ app.put("/tracium/update/view_dependency/:viewName", async (req, res) => {
 });
 
 
+// update view activeness
+app.put("/tracium/update/activeness/:viewName", async (req, res) => {
+  const { viewName } = req.params;
+  const { valueToSet } = req.body; // comma separated strings
+
+  try {
+
+    const connection = await mysql.createConnection(dbConfig);
+
+    await connection.execute(
+        `UPDATE views SET is_active = '${valueToSet}' WHERE view_name = '${viewName}'`
+    );
+
+    // Send response
+    res.json({
+      status: "success",
+      message: `View details updated successfully for job ${viewName}`,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ status: "error", message: "Failed to update dependencies" });
+  }
+});
+
+
+// update view monitoring
+// update job details
+app.put("/tracium/update/monitoring/:viewName", async (req, res) => {
+  const { viewName } = req.params;
+  const { valueToSet } = req.body; // comma separated strings
+
+  try {
+
+    const connection = await mysql.createConnection(dbConfig);
+
+    await connection.execute(
+        `UPDATE views SET monitoring_level = ${valueToSet} WHERE view_name = '${viewName}'`
+    );
+
+    // Send response
+    res.json({
+      status: "success",
+      message: `View details updated successfully for job ${viewName}`,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ status: "error", message: "Failed to update dependencies" });
+  }
+});
+
+
 
 // api for health check of all frequency jobs
 app.post("/tracium/healthCheck/:productName", async (req, res) => {
@@ -212,6 +264,7 @@ app.post("/tracium/healthCheck/:productName", async (req, res) => {
     const hourlyJobs = jobs.filter((j) => j.frequency === "hourly");
     const customHourlyJobs = jobs.filter((j) => j.frequency && j.frequency.includes("-hourly"));
     const monthlyJobs = jobs.filter((j) => j.frequency === "monthly");
+    const weeklyJobs = jobs.filter((j) => j.frequency === 'weekly');
 
     const results = [];
 
@@ -233,6 +286,11 @@ app.post("/tracium/healthCheck/:productName", async (req, res) => {
     // MONTHLY Processing
     if (monthlyJobs.length > 0) {
       await processMonthlyJobs(monthlyJobs, startDate, endDate, connection, results);
+    }
+
+    // WEEKLY Processing
+    if(weeklyJobs.length > 0){
+        await processWeeklyJobs(weeklyJobs, startDate, endDate, connection, results);
     }
 
     await connection.end();
