@@ -1,6 +1,6 @@
 # Deployment Steps :
 
-1. Login to cluster using tsh (tsh --proxy=va1px02.pubmatic.com ssh -A hdp-edevops@10.145.80.53)
+1. Login to .53 cluster using tsh
 
 2. Go to root user (sudo su root)
 
@@ -29,11 +29,11 @@
 
     cd client/
 
-    docker build --platform linux/amd64 --build-arg REACT_APP_API_URL=http://10.145.80.53:5000 --build-arg REACT_APP_DISCREPANCY_CHECKER_URL=http://10.145.78.91:8501/ -t docker.pubmatic.com/tracium-react .
+    docker build --platform linux/amd64 --build-arg REACT_APP_API_URL=<API_HOST:PORT> --build-arg REACT_APP_DISCREPANCY_CHECKER_URL=<DISCREPANCY_URL> -t <DOCKER_URL>/tracium-react .
 
 4. Run the image
 
-    sudo docker run -d --name tracium-react-container -p 3030:80 docker.pubmatic.com/tracium-react:latest
+    sudo docker run -d --name tracium-react-container -p 3030:80 <DOCKER_URL>/tracium-react:latest
 
 5. Logs can be seen by command
 
@@ -57,11 +57,11 @@
 
 3. Build new image
 
-    sudo docker build --platform linux/amd64 -t docker.pubmatic.com/tracium-server:latest .
+    sudo docker build --platform linux/amd64 -t <DOCKER_URL>/tracium-server:latest .
 
 4. Run the image
 
-    sudo docker run -d --name tracium-server-container -p 5000:5000 -e PORT=5000 -e DB_HOST=bigdata.va1.pubmatic.local -e DB_PORT=3306 -e DB_USER=datanode_user -e DB_PASS=09kY3NHs docker.pubmatic.com/tracium-server:latest
+    sudo docker run -d --name tracium-server-container -p 5000:5000 -e PORT=5000 -e DB_HOST=<DB_HOST> -e DB_PORT=3306 -e DB_USER=<DB_USER> -e DB_PASS=<DB_PASSWORD> <DOCKER_URL>/tracium-server:latest
 
 5. Logs can be seen by command
 
