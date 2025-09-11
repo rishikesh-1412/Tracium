@@ -37,7 +37,7 @@ const dbConfig = {
 
 const pool = mysql.createPool({
   ...dbConfig,
-  connectionLimit: 10,
+  connectionLimit: 40,
   acquireTimeout: 60000,
   timeout: 60000,
   reconnect: true

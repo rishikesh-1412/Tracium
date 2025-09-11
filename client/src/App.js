@@ -81,7 +81,7 @@ export default function App() {
                 color: "#000",
               }}
             >
-              Tracium
+              𝑻𝒓𝒂𝒄𝒊𝒖𝒎
             </span>
           </div>
           <p style={{ color: "#888", fontSize: "12px" }}>
