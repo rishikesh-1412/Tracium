@@ -49,8 +49,10 @@ app.get("/tracium/productMapping/:productName", async (req, res) => {
   const { productName } = req.params;
   // const { startDate, endDate } = req.query;
 
+  let connection;
+
   try {
-    const connection = await pool.getConnection();
+    connection = await pool.getConnection();
 
     // Query to fetch dependencies dynamically
     const [rows] = await connection.execute(
@@ -90,8 +92,11 @@ app.get("/tracium/productMapping/:productName", async (req, res) => {
 
 // api for getting all available products list
 app.get("/tracium/list/products", async (req, res) => {
+
+  let connection;
+
   try {
-    const connection = await  pool.getConnection();
+    connection = await  pool.getConnection();
 
     // Query to fetch distinct product names
     const [rows] = await connection.execute(`
@@ -115,10 +120,13 @@ app.get("/tracium/list/products", async (req, res) => {
 });
 
 app.get("/tracium/list/views/:productName", async (req, res) => {
+
+  let connection;
+
   try {
     const { productName } = req.params;
 
-    const connection = await  pool.getConnection();
+    connection = await  pool.getConnection();
 
     // Query to fetch distinct product names
     const [rows] = await connection.execute(`
@@ -141,10 +149,13 @@ app.get("/tracium/list/views/:productName", async (req, res) => {
 
 
 app.get("/tracium/list/view_dependency/:productName", async (req, res) => {
+
+  let connection;
+
   try {
     const { productName } = req.params;
 
-    const connection = await  pool.getConnection();
+    connection = await  pool.getConnection();
 
     // Query to fetch distinct product names
     const [rows] = await connection.execute(`
@@ -167,12 +178,15 @@ app.get("/tracium/list/view_dependency/:productName", async (req, res) => {
 
 
 app.put("/tracium/update/view_dependency/:viewName", async (req, res) => {
+
+  let connection;
+
   const { viewName } = req.params;
   const { inputViews, rawInputs } = req.body; // comma separated strings
 
   try {
 
-    const connection = await pool.getConnection();
+    connection = await pool.getConnection();
 
     // 1️⃣ Delete existing dependencies
     await connection.execute("DELETE FROM view_dependencies WHERE view_name = ?", [viewName]);
@@ -221,12 +235,15 @@ app.put("/tracium/update/view_dependency/:viewName", async (req, res) => {
 
 // update view activeness
 app.put("/tracium/update/activeness/:viewName", async (req, res) => {
+
+  let connection;
+
   const { viewName } = req.params;
   const { valueToSet } = req.body; // comma separated strings
 
   try {
 
-    const connection = await pool.getConnection();
+    connection = await pool.getConnection();
 
     await connection.execute(
         `UPDATE views SET is_active = '${valueToSet}' WHERE view_name = '${viewName}'`
@@ -251,12 +268,15 @@ app.put("/tracium/update/activeness/:viewName", async (req, res) => {
 // update view monitoring
 // update job details
 app.put("/tracium/update/monitoring/:viewName", async (req, res) => {
+
+  let connection;
+
   const { viewName } = req.params;
   const { valueToSet } = req.body; // comma separated strings
 
   try {
 
-    const connection = await  pool.getConnection();
+    connection = await  pool.getConnection();
 
     await connection.execute(
         `UPDATE views SET monitoring_level = ${valueToSet} WHERE view_name = '${viewName}'`
@@ -281,11 +301,14 @@ app.put("/tracium/update/monitoring/:viewName", async (req, res) => {
 
 // api for health check of all frequency jobs
 app.post("/tracium/healthCheck/:productName", async (req, res) => {
+
+  let connection;
+
   const { productName } = req.params;
   const { startDate, endDate } = req.body; // both are in "YYYY-MM-DD-HH"
 
   try {
-    const connection = await pool.getConnection();
+    connection = await pool.getConnection();
 
     await connection.query("SET SESSION group_concat_max_len = 1000000");
 
