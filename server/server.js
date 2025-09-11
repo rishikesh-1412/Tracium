@@ -50,7 +50,7 @@ app.get("/tracium/productMapping/:productName", async (req, res) => {
   // const { startDate, endDate } = req.query;
 
   try {
-    const connection = await  pool.getConnection();
+    const connection = await pool.getConnection();
 
     // Query to fetch dependencies dynamically
     const [rows] = await connection.execute(
@@ -80,6 +80,10 @@ app.get("/tracium/productMapping/:productName", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to fetch data from database" });
+  } finally {
+    if (connection) {
+      connection.release();
+    }
   }
 });
 
@@ -103,6 +107,10 @@ app.get("/tracium/list/products", async (req, res) => {
   } catch (err) {
     console.error("Error fetching product list:", err);
     res.status(500).json({ error: "Failed to fetch data from database" });
+  }finally {
+    if (connection) {
+      connection.release();
+    }
   }
 });
 
@@ -124,6 +132,10 @@ app.get("/tracium/list/views/:productName", async (req, res) => {
   } catch (err) {
     console.error("Error fetching product list:", err);
     res.status(500).json({ error: "Failed to fetch data from database" });
+  }finally {
+    if (connection) {
+      connection.release();
+    }
   }
 });
 
@@ -146,6 +158,10 @@ app.get("/tracium/list/view_dependency/:productName", async (req, res) => {
   } catch (err) {
     console.error("Error fetching product list:", err);
     res.status(500).json({ error: "Failed to fetch data from database" });
+  }finally {
+    if (connection) {
+      connection.release();
+    }
   }
 });
 
@@ -195,6 +211,10 @@ app.put("/tracium/update/view_dependency/:viewName", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ status: "error", message: "Failed to update dependencies" });
+  }finally {
+    if (connection) {
+      connection.release();
+    }
   }
 });
 
@@ -220,6 +240,10 @@ app.put("/tracium/update/activeness/:viewName", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ status: "error", message: "Failed to update dependencies" });
+  }finally {
+    if (connection) {
+      connection.release();
+    }
   }
 });
 
@@ -246,6 +270,10 @@ app.put("/tracium/update/monitoring/:viewName", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ status: "error", message: "Failed to update dependencies" });
+  }finally {
+    if (connection) {
+      connection.release();
+    }
   }
 });
 
@@ -316,6 +344,10 @@ app.post("/tracium/healthCheck/:productName", async (req, res) => {
   } catch (err) {
     console.error("Error in healthCheck:", err);
     res.status(500).json({ error: "Failed to fetch health check" });
+  }finally {
+    if (connection) {
+      connection.release();
+    }
   }
 });
 
