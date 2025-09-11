@@ -7,6 +7,7 @@ import DynamicSVGPlaceholderWithEdges from "./SVGPlaceholder";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import JobDependency from "./JobDependencies";
+import TraciumLogo from "./tracium_logo.png";
 
 
 export default function App() {
@@ -63,7 +64,7 @@ export default function App() {
           {/* Dashboard */}
           <div style={{ display: "flex", alignItems: "center" }}>
             <img
-              src="./Tracium_logo.png"
+              src={TraciumLogo}
               alt="Tracium Logo"
               style={{
                 width: 50,

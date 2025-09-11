@@ -35,13 +35,22 @@ const dbConfig = {
 };
 
 
+const pool = mysql.createPool({
+  ...dbConfig,
+  connectionLimit: 10,
+  acquireTimeout: 60000,
+  timeout: 60000,
+  reconnect: true
+});
+
+
 //api to get mapping of all jobs for specific product
 app.get("/tracium/productMapping/:productName", async (req, res) => {
   const { productName } = req.params;
   // const { startDate, endDate } = req.query;
 
   try {
-    const connection = await mysql.createConnection(dbConfig);
+    const connection = await  pool.getConnection();
 
     // Query to fetch dependencies dynamically
     const [rows] = await connection.execute(
@@ -62,7 +71,7 @@ app.get("/tracium/productMapping/:productName", async (req, res) => {
       [productName]
     );
 
-    await connection.end();
+    // await connection.end();
 
     res.json({
       productName,
@@ -78,7 +87,7 @@ app.get("/tracium/productMapping/:productName", async (req, res) => {
 // api for getting all available products list
 app.get("/tracium/list/products", async (req, res) => {
   try {
-    const connection = await mysql.createConnection(dbConfig);
+    const connection = await  pool.getConnection();
 
     // Query to fetch distinct product names
     const [rows] = await connection.execute(`
@@ -86,7 +95,7 @@ app.get("/tracium/list/products", async (req, res) => {
       FROM views 
     `);
 
-    await connection.end();
+    // await connection.end();
 
     res.json({
       products: rows
@@ -101,13 +110,13 @@ app.get("/tracium/list/views/:productName", async (req, res) => {
   try {
     const { productName } = req.params;
 
-    const connection = await mysql.createConnection(dbConfig);
+    const connection = await  pool.getConnection();
 
     // Query to fetch distinct product names
     const [rows] = await connection.execute(`
       SELECT * from views where product_name = ?`, [productName]);
 
-    await connection.end();
+    // await connection.end();
 
     res.json({
       products: rows
@@ -123,13 +132,13 @@ app.get("/tracium/list/view_dependency/:productName", async (req, res) => {
   try {
     const { productName } = req.params;
 
-    const connection = await mysql.createConnection(dbConfig);
+    const connection = await  pool.getConnection();
 
     // Query to fetch distinct product names
     const [rows] = await connection.execute(`
       SELECT * from view_dependencies where view_name in (select view_name from views where product_name = ?)`, [productName]);
 
-    await connection.end();
+    // await connection.end();
 
     res.json({
       products: rows
@@ -147,7 +156,7 @@ app.put("/tracium/update/view_dependency/:viewName", async (req, res) => {
 
   try {
 
-    const connection = await mysql.createConnection(dbConfig);
+    const connection = await pool.getConnection();
 
     // 1️⃣ Delete existing dependencies
     await connection.execute("DELETE FROM view_dependencies WHERE view_name = ?", [viewName]);
@@ -197,7 +206,7 @@ app.put("/tracium/update/activeness/:viewName", async (req, res) => {
 
   try {
 
-    const connection = await mysql.createConnection(dbConfig);
+    const connection = await pool.getConnection();
 
     await connection.execute(
         `UPDATE views SET is_active = '${valueToSet}' WHERE view_name = '${viewName}'`
@@ -223,7 +232,7 @@ app.put("/tracium/update/monitoring/:viewName", async (req, res) => {
 
   try {
 
-    const connection = await mysql.createConnection(dbConfig);
+    const connection = await  pool.getConnection();
 
     await connection.execute(
         `UPDATE views SET monitoring_level = ${valueToSet} WHERE view_name = '${viewName}'`
@@ -248,7 +257,7 @@ app.post("/tracium/healthCheck/:productName", async (req, res) => {
   const { startDate, endDate } = req.body; // both are in "YYYY-MM-DD-HH"
 
   try {
-    const connection = await mysql.createConnection(dbConfig);
+    const connection = await pool.getConnection();
 
     await connection.query("SET SESSION group_concat_max_len = 1000000");
 
@@ -268,32 +277,40 @@ app.post("/tracium/healthCheck/:productName", async (req, res) => {
 
     const results = [];
 
-    // ---------- DAILY ----------
-    if (dailyJobs.length > 0) {
-      await processDailyJobs(dailyJobs, startDate, endDate, connection, results);
-    }
+    // // ---------- DAILY ----------
+    // if (dailyJobs.length > 0) {
+    //   await processDailyJobs(dailyJobs, startDate, endDate, connection, results);
+    // }
 
-    // ---------- HOURLY ----------
-    if (hourlyJobs.length > 0) {
-      await processHourlyJobs(hourlyJobs, startDate, endDate, connection, results);
-    }
+    // // ---------- HOURLY ----------
+    // if (hourlyJobs.length > 0) {
+    //   await processHourlyJobs(hourlyJobs, startDate, endDate, connection, results);
+    // }
 
-    //----------CUSTOM HOURLY ----------
-    if (customHourlyJobs.length > 0) {
-      await processCustomHourlyJobs(customHourlyJobs, startDate, endDate, connection, results);
-    }
+    // //----------CUSTOM HOURLY ----------
+    // if (customHourlyJobs.length > 0) {
+    //   await processCustomHourlyJobs(customHourlyJobs, startDate, endDate, connection, results);
+    // }
 
-    // MONTHLY Processing
-    if (monthlyJobs.length > 0) {
-      await processMonthlyJobs(monthlyJobs, startDate, endDate, connection, results);
-    }
+    // // MONTHLY Processing
+    // if (monthlyJobs.length > 0) {
+    //   await processMonthlyJobs(monthlyJobs, startDate, endDate, connection, results);
+    // }
 
-    // WEEKLY Processing
-    if(weeklyJobs.length > 0){
-        await processWeeklyJobs(weeklyJobs, startDate, endDate, connection, results);
-    }
+    const [dailyResults, hourlyResults, customHourlyResults, monthlyResults, weeklyResults] = await Promise.all([
+      dailyJobs.length > 0 ? processDailyJobs(dailyJobs, startDate, endDate, connection, results) : Promise.resolve([]),
+      hourlyJobs.length > 0 ? processHourlyJobs(hourlyJobs, startDate, endDate, connection, results) : Promise.resolve([]),
+      customHourlyJobs.length > 0 ? processCustomHourlyJobs(customHourlyJobs, startDate, endDate, connection, results) : Promise.resolve([]),
+      monthlyJobs.length > 0 ? processMonthlyJobs(monthlyJobs, startDate, endDate, connection, results) : Promise.resolve([]),
+      weeklyJobs.length > 0 ? processWeeklyJobs(weeklyJobs, startDate, endDate, connection, results) : Promise.resolve([])
+    ]);
 
-    await connection.end();
+    // // WEEKLY Processing
+    // if(weeklyJobs.length > 0){
+    //     await processWeeklyJobs(weeklyJobs, startDate, endDate, connection, results);
+    // }
+
+    // await connection.end();
 
     res.json({ productName, results });
   } catch (err) {
