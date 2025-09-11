@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import ReactFlow, {
   Controls,
   Background,
@@ -73,6 +73,38 @@ const getAllAncestors = (nodeId, parentMap) => {
   return ancestorEdges;
 };
 
+// ---- UTILITY TO CALCULATE DYNAMIC ZOOM ----
+const calculateMinZoom = (nodes, viewportWidth = 1200, viewportHeight = 800, padding = 100) => {
+  if (!nodes || nodes.length === 0) return 0.1;
+
+  // Calculate bounding box of all nodes
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  
+  nodes.forEach(node => {
+    const nodeWidth = node.style?.width || 320;
+    const nodeHeight = node.style?.height || 80;
+    
+    minX = Math.min(minX, node.position.x);
+    maxX = Math.max(maxX, node.position.x + nodeWidth);
+    minY = Math.min(minY, node.position.y);
+    maxY = Math.max(maxY, node.position.y + nodeHeight);
+  });
+
+  // Add padding
+  const graphWidth = maxX - minX + (padding * 2);
+  const graphHeight = maxY - minY + (padding * 2);
+
+  // Calculate zoom needed to fit the graph in viewport
+  const zoomX = viewportWidth / graphWidth;
+  const zoomY = viewportHeight / graphHeight;
+  
+  // Use the smaller zoom to ensure everything fits
+  const minZoom = Math.min(zoomX, zoomY);
+  
+  // Set a reasonable minimum (don't go too small)
+  return Math.max(minZoom * 0.8, 0.05); // 0.8 factor for some breathing room
+};
+
 // ---- GRAPH COMPONENT ----
 export default function Graph({ productName, startDate, endDate }) {
   const [dependencies, setDependencies] = useState([]);
@@ -88,6 +120,11 @@ export default function Graph({ productName, startDate, endDate }) {
   const [newDependency, setNewDependency] = useState({
     inputs: [{ inputId: "", isRaw: false, customName: "" }],
   });
+
+  // State for dynamic zoom
+  const [minZoom, setMinZoom] = useState(0.3);
+  const [maxZoom] = useState(5);
+  const reactFlowInstance = useRef(null);
 
   const parentMap = buildParentMap(edges);
 
@@ -122,6 +159,15 @@ export default function Graph({ productName, startDate, endDate }) {
     },
     [setEdges, parentMap]
   );
+
+  // Callback to handle ReactFlow initialization
+  const onInit = useCallback((reactFlowInstance) => {
+    reactFlowInstance.fitView({ 
+      padding: 0.1,
+      minZoom: minZoom,
+      maxZoom: 1
+    });
+  }, [minZoom]);
 
   useEffect(() => {
     if (!productName || !startDate || !endDate) return;
@@ -252,6 +298,11 @@ export default function Graph({ productName, startDate, endDate }) {
 
     setNodes(initialNodes);
     setEdges(initialEdges);
+
+    // Calculate dynamic min zoom after nodes are set
+    const calculatedMinZoom = calculateMinZoom(initialNodes);
+    setMinZoom(calculatedMinZoom);
+
   }, [dependencies, healthCheckMap, setNodes, setEdges]);
 
 
@@ -435,10 +486,11 @@ export default function Graph({ productName, startDate, endDate }) {
             )
           );
         }}
-        minZoom={0.3}
-        maxZoom={5}
+        minZoom={minZoom}
+        maxZoom={maxZoom}
         fitView
         nodesDraggable
+        onInit={onInit}
       >
         <Controls />
         <Background
