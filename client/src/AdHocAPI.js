@@ -140,6 +140,78 @@ export default function AdHocAPI({ productName, startDate, endDate }) {
     );
   };
 
+  // Function to get display title for frequency
+  const getFrequencyTitle = (frequency) => {
+    const frequencyMap = {
+      'hourly': 'Hourly Performance',
+      'daily': 'Daily Performance', 
+      'weekly': 'Weekly Performance',
+      'monthly': 'Monthly Performance'
+    };
+    
+    // Check if it's a custom hourly frequency (e.g., "2-hourly", "3-hourly")
+    if (frequency && frequency.includes('-hourly')) {
+      const interval = frequency.split('-')[0];
+      return `${interval}-Hourly Performance`;
+    }
+    
+    // Check if it's a custom weekly frequency (e.g., "2-weekly", "3-weekly")
+    if (frequency && frequency.includes('-weekly')) {
+      const interval = frequency.split('-')[0];
+      return `${interval}-Weekly Performance`;
+    }
+    
+    // Check if it's a custom daily frequency (e.g., "2-daily", "3-daily")
+    if (frequency && frequency.includes('-daily')) {
+      const interval = frequency.split('-')[0];
+      return `${interval}-Daily Performance`;
+    }
+    
+    // Check if it's a custom monthly frequency (e.g., "2-monthly", "3-monthly")
+    if (frequency && frequency.includes('-monthly')) {
+      const interval = frequency.split('-')[0];
+      return `${interval}-Monthly Performance`;
+    }
+    
+    // Return mapped title or capitalize the frequency
+    return frequencyMap[frequency] || `${frequency.charAt(0).toUpperCase() + frequency.slice(1)} Performance`;
+  };
+
+  // Function to sort frequencies for display order
+  const sortFrequencies = (frequencies) => {
+    const order = ['hourly', 'daily', 'weekly', 'monthly'];
+    const customFrequencies = frequencies.filter(f => !order.includes(f));
+    
+    // Sort custom frequencies
+    customFrequencies.sort((a, b) => {
+      // Extract numeric part for sorting
+      const getNumericPart = (freq) => {
+        const match = freq.match(/^(\d+)-/);
+        return match ? parseInt(match[1]) : 999;
+      };
+      
+      const aNum = getNumericPart(a);
+      const bNum = getNumericPart(b);
+      
+      if (aNum !== bNum) return aNum - bNum;
+      
+      // If same numeric part, sort by type
+      const aType = a.includes('hourly') ? 0 : a.includes('daily') ? 1 : a.includes('weekly') ? 2 : 3;
+      const bType = b.includes('hourly') ? 0 : b.includes('daily') ? 1 : b.includes('weekly') ? 2 : 3;
+      return aType - bType;
+    });
+    
+    // Combine ordered frequencies with custom ones
+    const orderedFrequencies = [];
+    order.forEach(freq => {
+      if (frequencies.includes(freq)) {
+        orderedFrequencies.push(freq);
+      }
+    });
+    
+    return [...orderedFrequencies, ...customFrequencies];
+  };
+
   const isDark = theme === "dark";
 
   return (
@@ -177,10 +249,13 @@ export default function AdHocAPI({ productName, startDate, endDate }) {
         <div style={{ marginTop: "20px" }}>Loading data...</div>
       ) : (
         <>
-          {renderTable("Hourly Performance", groupedData.hourly || [], "hourly")}
-          {renderTable("Daily Performance", groupedData.daily || [], "daily")}
-          {renderTable("Weekly Performance", groupedData.weekly || [], "weekly")}
-          {renderTable("Monthly Performance", groupedData.monthly || [], "monthly")}
+          {sortFrequencies(Object.keys(groupedData)).map(frequency => (
+            renderTable(
+              getFrequencyTitle(frequency), 
+              groupedData[frequency] || [], 
+              frequency
+            )
+          ))}
         </>
       )}
     </div>
