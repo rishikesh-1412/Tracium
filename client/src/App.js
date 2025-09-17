@@ -63,31 +63,22 @@ export default function App() {
         <h2 style={{ marginBottom: "20px", fontSize: "18px", fontWeight: "bold" }}>
           {/* Dashboard */}
           <div style={{ display: "flex", alignItems: "center" }}>
-            <img
-              src={TraciumLogo}
-              alt="Tracium Logo"
-              style={{
-                width: 50,
-                height: 50, // keep it square for better alignment
-                marginRight: 0,
-                borderRadius: 8,
-                filter: "grayscale(100%) brightness(0)"
-              }}
-            />
-            <span
-              style={{
-                fontSize: 36, // adjust as needed to match logo's visual height
-                fontWeight: "bold",
-                color: "#000",
-              }}
-            >
-              𝑻𝒓𝒂𝒄𝒊𝒖𝒎
-            </span>
+          <img
+            src={TraciumLogo}
+            alt="Tracium Logo"
+            style={{
+              width: "auto",             // fixed base width
+              height: "auto",             // keep aspect ratio
+              maxWidth: "100%",           // responsive
+              marginRight: 12,            // spacing
+              borderRadius: 8,
+              objectFit: "contain",
+              transition: "transform 0.3s ease-in-out",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.08)")}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+          />
           </div>
-          <p style={{ color: "#888", fontSize: "12px" }}>
-            Powered By Observium
-          </p>
-
         </h2>
 
         <button
